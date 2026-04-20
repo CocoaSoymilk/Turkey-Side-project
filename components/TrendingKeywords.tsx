@@ -34,8 +34,8 @@ export function TrendingKeywords({
               onClick={() => setSelected(k)}
               className={
                 active
-                  ? "rounded-full border border-accent-gold px-3 py-1.5 text-sm text-white"
-                  : "rounded-full border border-white/50 px-3 py-1.5 text-sm text-white/90 hover:border-white"
+                  ? "rounded-full border border-accent-gold bg-white/10 px-3 py-1.5 text-sm text-white"
+                  : "rounded-full border border-white/40 px-3 py-1.5 text-sm text-white/90 hover:border-white hover:bg-white/5 transition-colors duration-200"
               }
             >
               #{k}
@@ -44,14 +44,14 @@ export function TrendingKeywords({
         })}
       </div>
 
-      <div className="mt-5 rounded-3xl bg-slate-100 p-4 min-h-[220px]">
+      <div className="mt-5 rounded-3xl bg-white/90 p-4 min-h-[220px]">
         {filtered.length > 0 ? (
           <ul className="space-y-2">
             {filtered.map((item) => (
               <li key={item.id}>
                 <Link
                   href={`/article/${item.id}?title=${encodeURIComponent(item.cleanTitle)}&desc=${encodeURIComponent(item.cleanDescription)}&link=${encodeURIComponent(item.link)}&source=${encodeURIComponent(item.source)}&pubDate=${encodeURIComponent(item.pubDate)}`}
-                  className="block rounded-xl border border-slate-200 bg-white px-3 py-2 hover:bg-slate-50 transition"
+                  className="block rounded-xl border border-slate-200 bg-white px-3 py-2 hover:border-slate-300 hover:bg-slate-50 transition-all duration-200"
                 >
                   <p className="text-sm font-medium text-navy line-clamp-1">
                     {item.cleanTitle}
@@ -64,8 +64,8 @@ export function TrendingKeywords({
             ))}
           </ul>
         ) : (
-          <div className="h-full min-h-[188px] flex items-center justify-center text-slate-400">
-            뉴스
+          <div className="h-full min-h-[188px] flex items-center justify-center text-sm text-slate-500">
+            선택한 키워드에 해당하는 뉴스가 없습니다.
           </div>
         )}
       </div>

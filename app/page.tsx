@@ -127,10 +127,9 @@ export default async function Home() {
   return (
     <main className="min-h-screen bg-[#F8FAFC]">
       {/* Top bar */}
-      <header className="border-b border-slate-200 bg-white">
+      <header className="border-b border-slate-200/90 bg-white/95 backdrop-blur">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
           <Logo variant="light" />
-          <nav className="text-sm text-slate-500">AI · Naver News</nav>
         </div>
       </header>
 
@@ -152,7 +151,6 @@ export default async function Home() {
         <section className="card p-5 md:p-6">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-navy">이슈 가중치 순위</h2>
-            <span className="text-xs text-slate-400">Top 4</span>
           </div>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {topCards.length > 0 ? (
@@ -177,11 +175,7 @@ export default async function Home() {
                 픽앤(Pick-Ant)은 네이버 뉴스와 GPT를 결합하여 오늘의 경제
                 이슈를 초보 투자자에게 쉬운 한국어로 전달합니다.
               </p>
-              <ul className="mt-3 text-xs text-slate-500 space-y-1.5">
-                <li>· 3줄 AI 요약</li>
-                <li>· 용어 하이라이트 + 툴팁</li>
-                <li>· 이슈 가중치 기반 랭킹</li>
-              </ul>
+              
             </section>
 
             <section className="card p-5 bg-navy text-white">
@@ -194,8 +188,8 @@ export default async function Home() {
           </aside>
         </div>
 
-        <footer className="pt-6 text-center text-xs text-slate-400">
-          © Pick-Ant · News via Naver OpenAPI · AI via OpenAI
+        <footer className="pt-6 text-center text-xs text-slate-500">
+          © Pick-Ant · News via Naver OpenAPI · Market via KIS/Yahoo Finance · AI via OpenAI
         </footer>
       </div>
     </main>

@@ -10,7 +10,7 @@ export function NewsCard({ item, rank }: { item: NewsItem; rank?: number }) {
       )}&link=${encodeURIComponent(item.link)}&source=${encodeURIComponent(item.source)}&pubDate=${encodeURIComponent(
         item.pubDate
       )}`}
-      className="card p-5 block hover:-translate-y-0.5 hover:shadow-md transition"
+      className="card p-5 block hover:-translate-y-0.5 hover:border-slate-300 transition-all duration-200"
     >
       <div className="flex items-center justify-between">
         {typeof rank === "number" ? (
