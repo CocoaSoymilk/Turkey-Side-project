@@ -5,36 +5,11 @@ import { getQuotes, type Quote } from "@/lib/market";
 import { HeroCard, type HeroKpi } from "@/components/HeroCard";
 import { TrendingKeywords } from "@/components/TrendingKeywords";
 import { NewsCard } from "@/components/NewsCard";
-import { NewsListRow } from "@/components/NewsListRow";
 import { Logo } from "@/components/Logo";
 import type { NewsItem } from "@/lib/types";
+import { extractTrendingKeywordNames } from "@/lib/trending";
 
 export const revalidate = 60;
-
-const STOPWORDS = new Set<string>([
-  "있다", "없다", "그리고", "그러나", "하지만", "이번", "오늘", "관련", "대한", "에서",
-  "으로", "에서의", "이라고", "위해", "대해", "지난", "이날", "최근", "통해", "따라",
-  "동안", "이상", "이하", "기준", "전망", "예상", "강조", "발표", "밝혔다", "말했다",
-  "전했다", "있는", "없는", "많은", "큰", "등", "및", "또", "위한", "것으로", "것이다",
-  "했다", "됐다", "된다", "한다", "하는", "했던", "됐던", "이후",
-]);
-
-function extractKeywords(texts: string[], topN = 8): string[] {
-  const counts = new Map<string, number>();
-  const re = /[가-힣A-Za-z0-9]{2,}/g;
-  for (const t of texts) {
-    const matches = t.match(re) || [];
-    for (const raw of matches) {
-      const w = raw.trim();
-      if (w.length < 2 || /^\d+$/.test(w) || STOPWORDS.has(w)) continue;
-      counts.set(w, (counts.get(w) ?? 0) + 1);
-    }
-  }
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, topN)
-    .map(([k]) => k);
-}
 
 async function fetchDashboard() {
   try {
@@ -55,9 +30,7 @@ async function fetchDashboard() {
       }),
     ]);
     const items: NewsItem[] = [...market, ...macro];
-    const keywords = extractKeywords(
-      items.map((i) => `${i.cleanTitle} ${i.cleanDescription}`)
-    );
+    const keywords = extractTrendingKeywordNames(items, 8);
     let heroText = "";
     try {
       heroText = await summarizeMarket(items.map((i) => i.cleanTitle));
@@ -143,7 +116,6 @@ export default async function Home() {
   const fallbackHero =
     "오늘의 시장은 '주요 경제 이슈'와 '시장 변동성'에 주목하고 있습니다.";
   const topCards = items.slice(0, 4);
-  const list = items.slice(4, 12);
 
   const kpis: HeroKpi[] = [
     indexToKpi(kospi, "KOSPI"),
@@ -173,7 +145,6 @@ export default async function Home() {
           date={today}
           text={heroText || fallbackHero}
           kpis={kpis}
-          keywords={keywords.slice(0, 6)}
           fetchedAt={fetchedAt}
         />
 
@@ -196,22 +167,7 @@ export default async function Home() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <TrendingKeywords keywords={keywords} />
-
-            <section className="card p-5 md:p-6">
-              <h2 className="text-sm font-bold text-navy">뉴스</h2>
-              <div className="mt-2">
-                {list.length > 0 ? (
-                  list.map((it, idx) => (
-                    <NewsListRow key={it.id} item={it} rank={idx + 1} />
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-400 py-6">
-                    표시할 뉴스가 없습니다.
-                  </p>
-                )}
-              </div>
-            </section>
+            <TrendingKeywords keywords={keywords} items={items.slice(0, 14)} />
           </div>
 
           <aside className="space-y-4">

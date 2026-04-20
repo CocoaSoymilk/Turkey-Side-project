@@ -14,13 +14,11 @@ export function HeroCard({
   date,
   text,
   kpis,
-  keywords,
   fetchedAt,
 }: {
   date: string;
   text: string;
   kpis: HeroKpi[];
-  keywords: string[];
   fetchedAt?: string;
 }) {
   const parts = text.split(/('[^']+'|"[^"]+")/g);
@@ -58,16 +56,6 @@ export function HeroCard({
           <KpiCard key={k.label} {...k} />
         ))}
       </div>
-
-      {keywords.length > 0 && (
-        <div className="mt-5 flex flex-wrap gap-2">
-          {keywords.map((k) => (
-            <span key={k} className="chip-dark">
-              #{k}
-            </span>
-          ))}
-        </div>
-      )}
     </section>
   );
 }
