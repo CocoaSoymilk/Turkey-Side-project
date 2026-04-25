@@ -48,7 +48,7 @@ export default function TestSortPage() {
 
           // [수정] 외부 API 대신 현재 뉴스 리스트에서 직접 키워드 추출
           const currentKeywords = extractKeywords(
-            uniqueItems.map((i) => `${i.cleanTitle} ${i.cleanDescription}`)
+          uniqueItems.map((i: NewsItem) => `${i.cleanTitle} ${i.cleanDescription}`)
           );
           setKeywords(currentKeywords);
 
