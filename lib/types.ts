@@ -12,6 +12,10 @@ export type NewsItem = NaverNewsItem & {
   cleanDescription: string;
   source: string;
   keywords?: string[];
+  /** * [추가] 실시간 조회수 데이터
+   * DB와 연동 전에는 undefined일 수 있으므로 선택적 속성으로 정의.
+   */
+  viewCount?: number; 
 };
 
 export type SummaryResult = {

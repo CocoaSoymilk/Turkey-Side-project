@@ -8,6 +8,7 @@ import { NewsCard } from "@/components/NewsCard";
 import { NewsListRow } from "@/components/NewsListRow";
 import { Logo } from "@/components/Logo";
 import type { NewsItem } from "@/lib/types";
+import { sortNews } from "@/lib/scoring"; // [추가] 1주차 핵심 정렬 로직 연결
 
 export const revalidate = 60;
 
@@ -39,8 +40,8 @@ function extractKeywords(texts: string[], topN = 8): string[] {
 async function fetchDashboard() {
   try {
     const [market, macro, kospi, kosdaq, quotes] = await Promise.all([
-      searchNaverNews({ query: "증시", display: 20, sort: "date" }),
-      searchNaverNews({ query: "한국은행 금리", display: 10, sort: "date" }),
+      searchNaverNews({ query: "증시", display: 100, sort: "date" }),
+      searchNaverNews({ query: "한국은행 금리", display: 50, sort: "date" }),
       getIndexQuote("kospi").catch((e) => {
         console.error("[kis:kospi]", e);
         return null;
@@ -54,16 +55,22 @@ async function fetchDashboard() {
         return [] as Quote[];
       }),
     ]);
-    const items: NewsItem[] = [...market, ...macro];
+
+    let items: NewsItem[] = [...market, ...macro];
+
+    items = await sortNews(items, "hotTopic");
+
     const keywords = extractKeywords(
       items.map((i) => `${i.cleanTitle} ${i.cleanDescription}`)
     );
+
     let heroText = "";
     try {
       heroText = await summarizeMarket(items.map((i) => i.cleanTitle));
     } catch {
       heroText = "";
     }
+
     return {
       items,
       keywords,
@@ -135,14 +142,17 @@ export default async function Home() {
     fetchedAt,
     error,
   } = await fetchDashboard();
+
   const today = new Date().toLocaleDateString("ko-KR", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   });
+
   const fallbackHero =
     "오늘의 시장은 '주요 경제 이슈'와 '시장 변동성'에 주목하고 있습니다.";
-  const topCards = items.slice(0, 4);
+
+  const topCards = items.slice(0, 4); 
   const list = items.slice(4, 12);
 
   const kpis: HeroKpi[] = [
@@ -177,7 +187,7 @@ export default async function Home() {
           fetchedAt={fetchedAt}
         />
 
-        {/* Issue-weighted cards */}
+        {/* 이슈 가중치 순위 섹션 */}
         <section className="card p-5 md:p-6">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-navy">이슈 가중치 순위</h2>
@@ -203,7 +213,7 @@ export default async function Home() {
               <div className="mt-2">
                 {list.length > 0 ? (
                   list.map((it, idx) => (
-                    <NewsListRow key={it.id} item={it} rank={idx + 1} />
+                    <NewsListRow key={it.id} item={it} rank={idx + 5} />
                   ))
                 ) : (
                   <p className="text-sm text-slate-400 py-6">
