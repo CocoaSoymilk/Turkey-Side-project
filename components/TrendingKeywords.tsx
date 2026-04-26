@@ -22,11 +22,21 @@ export function TrendingKeywords({
 
   return (
     <section className="card-dark p-5 md:p-6">
-      <h2 className="text-xl font-bold text-white">트렌딩 키워드</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-white">트렌딩 키워드</h2>
+      </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        {keywords.map((k) => {
+      <div className="mt-4 flex flex-wrap items-end gap-2">
+        {keywords.map((k, idx) => {
           const active = selected === k;
+          const sizeClass =
+            idx === 0
+              ? "text-base"
+              : idx < 3
+                ? "text-[15px]"
+                : idx < 6
+                  ? "text-sm"
+                  : "text-xs";
           return (
             <button
               key={k}
@@ -34,8 +44,8 @@ export function TrendingKeywords({
               onClick={() => setSelected(k)}
               className={
                 active
-                  ? "rounded-full border border-accent-gold bg-white/10 px-3 py-1.5 text-sm text-white"
-                  : "rounded-full border border-white/40 px-3 py-1.5 text-sm text-white/90 hover:border-white hover:bg-white/5 transition-colors duration-200"
+                  ? `rounded-full border border-accent-gold bg-white/15 px-3 py-1.5 font-semibold text-white ${sizeClass}`
+                  : `rounded-full border border-white/40 px-3 py-1.5 text-white/90 hover:border-white hover:bg-white/5 transition-colors duration-200 ${sizeClass}`
               }
             >
               #{k}
