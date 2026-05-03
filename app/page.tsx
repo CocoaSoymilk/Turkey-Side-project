@@ -128,12 +128,12 @@ export default async function Home() {
     <main className="min-h-screen bg-[#F8FAFC]">
       {/* Top bar */}
       <header className="border-b border-slate-200/90 bg-white/95 backdrop-blur">
-        <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
+        <div className="mx-auto px-6 py-6 flex items-center justify-between">
           <Logo variant="light" />
         </div>
       </header>
 
-      <div className="mx-auto max-w-6xl px-4 py-6 md:py-10 space-y-6">
+      <div className="mx-auto max-w-[1600px] px-8 py-10 space-y-6">
         {error && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3 text-sm">
             뉴스 API 호출에 실패했습니다: {error}
@@ -150,11 +150,11 @@ export default async function Home() {
         {/* Issue-weighted cards */}
         <section className="card p-5 md:p-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-navy flex items-center gap-2">
+            <h2 className="text-lg font-bold text-navy flex items-center gap-2">
               <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[10px] text-blue-700">
                 N
               </span>
-              이슈 가중치 순위
+              실시간 뉴스 토픽
             </h2>
           </div>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">

@@ -56,7 +56,7 @@ export function HeroCard({
         <span className="chip-dark">AI 데일리 브리핑 · {date}</span>
         {updated ? <span className="chip-dark">지수 업데이트 · {updated}</span> : null}
       </div>
-      <h1 className="relative z-10 mt-3 text-xl md:text-3xl font-extrabold leading-snug tracking-[-0.01em]">
+      <h1 className="relative z-10 mt-3 text-lg md:text-2xl font-extrabold leading-snug tracking-[-0.01em]">
         {parts.map((p, i) =>
           /^['"].*['"]$/.test(p) ? (
             <span key={i} className="text-accent-gold">
