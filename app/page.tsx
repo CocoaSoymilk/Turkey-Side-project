@@ -127,14 +127,13 @@ export default async function Home() {
   return (
     <main className="min-h-screen bg-[#F8FAFC]">
       {/* Top bar */}
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
+      <header className="border-b border-slate-200/90 bg-white/95 backdrop-blur">
+        <div className="mx-auto px-6 py-6 flex items-center justify-between">
           <Logo variant="light" />
-          <nav className="text-sm text-slate-500">AI · Naver News</nav>
         </div>
       </header>
 
-      <div className="mx-auto max-w-6xl px-4 py-6 md:py-10 space-y-6">
+      <div className="mx-auto max-w-[1600px] px-8 py-10 space-y-6">
         {error && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3 text-sm">
             뉴스 API 호출에 실패했습니다: {error}
@@ -151,8 +150,12 @@ export default async function Home() {
         {/* Issue-weighted cards */}
         <section className="card p-5 md:p-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-navy">이슈 가중치 순위</h2>
-            <span className="text-xs text-slate-400">Top 4</span>
+            <h2 className="text-lg font-bold text-navy flex items-center gap-2">
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[10px] text-blue-700">
+                N
+              </span>
+              실시간 뉴스 토픽
+            </h2>
           </div>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {topCards.length > 0 ? (
@@ -171,31 +174,44 @@ export default async function Home() {
           </div>
 
           <aside className="space-y-4">
-            <section className="card p-5">
-              <h2 className="text-sm font-bold text-navy">픽앤 한 줄</h2>
+            <section className="card p-5 lg:min-h-[150px]">
+              <h2 className="text-sm font-bold text-navy flex items-center gap-2">
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[10px] text-emerald-700">
+                  i
+                </span>
+                픽앤 한 줄
+              </h2>
               <p className="mt-2 text-xs text-slate-500 leading-relaxed">
                 픽앤(Pick-Ant)은 네이버 뉴스와 GPT를 결합하여 오늘의 경제
                 이슈를 초보 투자자에게 쉬운 한국어로 전달합니다.
               </p>
-              <ul className="mt-3 text-xs text-slate-500 space-y-1.5">
-                <li>· 3줄 AI 요약</li>
-                <li>· 용어 하이라이트 + 툴팁</li>
-                <li>· 이슈 가중치 기반 랭킹</li>
-              </ul>
+              
             </section>
 
-            <section className="card p-5 bg-navy text-white">
-              <h2 className="text-sm font-bold">오늘의 개미 팁</h2>
+            <section className="card p-5 bg-navy text-white overflow-hidden relative">
+              <div
+                aria-hidden
+                className="absolute inset-0 opacity-30"
+                style={{
+                  backgroundImage:
+                    "radial-gradient(circle at 82% 15%, rgba(245,158,11,0.35), transparent 35%), radial-gradient(circle at 12% 88%, rgba(121,236,206,0.28), transparent 38%)",
+                }}
+              />
+              <h2 className="relative text-sm font-bold flex items-center gap-2">
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/15 text-[10px] text-white">
+                  !
+                </span>
+                오늘의 개미 팁
+              </h2>
               <p className="mt-2 text-xs text-white/70 leading-relaxed">
                 제목만 보고 거래 결정 금지. 본문 + 출처 + 다른 기사 교차확인
-                습관이 장기 성과를 만듭니다.
               </p>
             </section>
           </aside>
         </div>
 
-        <footer className="pt-6 text-center text-xs text-slate-400">
-          © Pick-Ant · News via Naver OpenAPI · AI via OpenAI
+        <footer className="pt-6 text-center text-xs text-slate-500">
+          © Pick-Ant · News via Naver OpenAPI · Market via KIS/Yahoo Finance · AI via OpenAI
         </footer>
       </div>
     </main>

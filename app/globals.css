@@ -12,18 +12,22 @@ body {
   color: #0F1B33;
 }
 
+body {
+  @apply leading-relaxed;
+}
+
 @layer components {
   .card {
-    @apply rounded-2xl bg-white shadow-sm border border-slate-100;
+    @apply rounded-2xl bg-white border border-slate-200/70 shadow-[0_12px_28px_-18px_rgba(15,27,51,0.28)];
   }
   .card-dark {
-    @apply rounded-2xl bg-navy text-white shadow-sm;
+    @apply rounded-2xl text-white border border-white/10 shadow-[0_20px_36px_-20px_rgba(15,27,51,0.7)] bg-gradient-to-br from-navy-900 via-navy to-navy-700;
   }
   .chip {
-    @apply inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-navy hover:bg-slate-50 transition;
+    @apply inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-navy hover:bg-slate-50 transition-colors duration-200;
   }
   .chip-dark {
-    @apply inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-white/90 hover:bg-white/10 transition;
+    @apply inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-white/90 hover:bg-white/10 transition-colors duration-200;
   }
   .kpi-label {
     @apply text-[11px] tracking-wide text-white/60 uppercase;

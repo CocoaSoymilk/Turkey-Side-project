@@ -22,11 +22,21 @@ export function TrendingKeywords({
 
   return (
     <section className="card-dark p-5 md:p-6">
-      <h2 className="text-xl font-bold text-white">트렌딩 키워드</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-white">트렌딩 키워드</h2>
+      </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        {keywords.map((k) => {
+      <div className="mt-4 flex flex-wrap items-end gap-2">
+        {keywords.map((k, idx) => {
           const active = selected === k;
+          const sizeClass =
+            idx === 0
+              ? "text-base"
+              : idx < 3
+                ? "text-[15px]"
+                : idx < 6
+                  ? "text-sm"
+                  : "text-xs";
           return (
             <button
               key={k}
@@ -34,8 +44,8 @@ export function TrendingKeywords({
               onClick={() => setSelected(k)}
               className={
                 active
-                  ? "rounded-full border border-accent-gold px-3 py-1.5 text-sm text-white"
-                  : "rounded-full border border-white/50 px-3 py-1.5 text-sm text-white/90 hover:border-white"
+                  ? `rounded-full border border-accent-gold bg-white/15 px-3 py-1.5 font-semibold text-white ${sizeClass}`
+                  : `rounded-full border border-white/40 px-3 py-1.5 text-white/90 hover:border-white hover:bg-white/5 transition-colors duration-200 ${sizeClass}`
               }
             >
               #{k}
@@ -44,14 +54,14 @@ export function TrendingKeywords({
         })}
       </div>
 
-      <div className="mt-5 rounded-3xl bg-slate-100 p-4 min-h-[220px]">
+      <div className="mt-5 rounded-3xl bg-white/90 p-4 min-h-[220px]">
         {filtered.length > 0 ? (
           <ul className="space-y-2">
             {filtered.map((item) => (
               <li key={item.id}>
                 <Link
                   href={`/article/${item.id}?title=${encodeURIComponent(item.cleanTitle)}&desc=${encodeURIComponent(item.cleanDescription)}&link=${encodeURIComponent(item.link)}&source=${encodeURIComponent(item.source)}&pubDate=${encodeURIComponent(item.pubDate)}`}
-                  className="block rounded-xl border border-slate-200 bg-white px-3 py-2 hover:bg-slate-50 transition"
+                  className="block rounded-xl border border-slate-200 bg-white px-3 py-2 hover:border-slate-300 hover:bg-slate-50 transition-all duration-200"
                 >
                   <p className="text-sm font-medium text-navy line-clamp-1">
                     {item.cleanTitle}
@@ -64,8 +74,8 @@ export function TrendingKeywords({
             ))}
           </ul>
         ) : (
-          <div className="h-full min-h-[188px] flex items-center justify-center text-slate-400">
-            뉴스
+          <div className="h-full min-h-[188px] flex items-center justify-center text-sm text-slate-500">
+            선택한 키워드에 해당하는 뉴스가 없습니다.
           </div>
         )}
       </div>
