@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { SummaryResult } from "./types";
+import type { LlmTrendKeyword, NewsItem, SummaryResult } from "./types";
 
 let _client: OpenAI | null = null;
 
@@ -82,4 +82,86 @@ export async function summarizeMarket(headlines: string[]): Promise<string> {
     ],
   });
   return res.choices[0]?.message?.content?.trim() ?? "";
+}
+
+export async function generateTrendKeywords(
+  items: NewsItem[],
+  topN = 8
+): Promise<LlmTrendKeyword[]> {
+  const client = getOpenAI();
+  const snippets = items
+    .slice(0, 80)
+    .map((item, index) => {
+      const title = item.cleanTitle || item.title;
+      const body =
+        item.cleanDescription ||
+        item.description ||
+        "";
+      return `${index + 1}. ${title}${body ? `\n   excerpt: ${body.slice(0, 220)}` : ""}`;
+    })
+    .join("\n");
+
+  const res = await client.chat.completions.create({
+    model: "gpt-4o-mini",
+    response_format: { type: "json_object" },
+    temperature: 0.2,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You extract concise Korean economy and stock-market trend keywords. Return only valid JSON. Do not give investment advice.",
+      },
+      {
+        role: "user",
+        content: `아래 뉴스 목록은 대부분 title만 있고 본문은 없을 수 있습니다. 제목에서 확인되는 사실만 근거로 오늘의 경제/증시 트렌드 키워드 ${topN}개를 뽑아 JSON으로 반환하세요.
+
+규칙:
+- 너무 넓은 단어(증시, 경제, 주식, 투자)는 단독 키워드로 쓰지 마세요.
+- 같은 이슈는 하나로 합치세요.
+- keyword는 화면 표시용 짧은 한국어 키워드입니다.
+- query는 Naver 뉴스 재검색에 쓸 검색어입니다.
+- summary는 왜 트렌드인지 60자 이내로 설명합니다.
+- evidence_titles는 근거가 된 제목을 최대 3개 넣습니다.
+
+출력 형식:
+{
+  "keywords": [
+    {
+      "keyword": "짧은 키워드",
+      "query": "검색어",
+      "summary": "짧은 설명",
+      "evidence_titles": ["근거 제목"]
+    }
+  ]
+}
+
+뉴스:
+${snippets}`,
+      },
+    ],
+  });
+
+  const raw = res.choices[0]?.message?.content ?? "{}";
+  const parsed = JSON.parse(raw) as {
+    keywords?: Array<{
+      keyword?: unknown;
+      query?: unknown;
+      summary?: unknown;
+      evidence_titles?: unknown;
+      evidenceTitles?: unknown;
+    }>;
+  };
+
+  return Array.isArray(parsed.keywords)
+    ? parsed.keywords.slice(0, topN).map((item) => ({
+        keyword: String(item.keyword ?? ""),
+        query: String(item.query ?? item.keyword ?? ""),
+        summary: String(item.summary ?? ""),
+        evidenceTitles: Array.isArray(item.evidence_titles)
+          ? item.evidence_titles.map(String)
+          : Array.isArray(item.evidenceTitles)
+            ? item.evidenceTitles.map(String)
+            : [],
+      }))
+    : [];
 }
