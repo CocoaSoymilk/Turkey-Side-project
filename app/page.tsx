@@ -1,165 +1,271 @@
-import Link from "next/link";
-import { summarizeArticle } from "@/lib/openai";
-import { HighlightedBody } from "@/components/GlossaryTooltip";
+import { createClient } from '@supabase/supabase-js'
+import { searchNaverNews } from "@/lib/naver";
+import { summarizeMarket } from "@/lib/openai";
+import { getIndexQuote, type IndexQuote } from "@/lib/kis";
+import { getQuotes, type Quote } from "@/lib/market";
+import { HeroCard, type HeroKpi } from "@/components/HeroCard";
+import { TrendingKeywords } from "@/components/TrendingKeywords";
+import { NewsCard } from "@/components/NewsCard";
 import { Logo } from "@/components/Logo";
-import { formatDateTime } from "@/lib/format";
+import type { NewsItem } from "@/lib/types";
+import { extractTrendingKeywordNames } from "@/lib/trending";
+import { StockRankingsSidebar } from "@/components/StockRankingsSidebar";
+import { AntTipsWidget } from "@/components/AntTipsWidget";
 
-export const revalidate = 3600;
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
-type SearchParams = {
-  title?: string;
-  desc?: string;
-  link?: string;
-  source?: string;
-  pubDate?: string;
-};
+export const revalidate = 60;
 
-export default async function ArticlePage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams: SearchParams;
-}) {
-  const title = searchParams.title ?? "(제목 없음)";
-  const description = searchParams.desc ?? "";
-  const link = searchParams.link ?? "#";
-  const source = searchParams.source ?? "";
-  const pubDate = searchParams.pubDate ?? "";
-
-  let summary: string[] = [];
-  let keywords: string[] = [];
-  let glossary: { term: string; definition: string }[] = [];
-  let aiError: string | null = null;
-
+async function fetchDashboard() {
   try {
-    const res = await summarizeArticle({ title, description });
-    summary = res.summary;
-    keywords = res.keywords;
-    glossary = res.glossary;
-  } catch (e) {
-    aiError = e instanceof Error ? e.message : String(e);
+    const [market, macro, kospi, kosdaq, quotes, supabaseRes] = await Promise.all([
+      searchNaverNews({ query: "증시", display: 20, sort: "date" }),
+      searchNaverNews({ query: "한국은행 금리", display: 10, sort: "date" }),
+      getIndexQuote("kospi").catch((e) => {
+        console.error("[kis:kospi]", e);
+        return null;
+      }),
+      getIndexQuote("kosdaq").catch((e) => {
+        console.error("[kis:kosdaq]", e);
+        return null;
+      }),
+      getQuotes(["nasdaq", "vix", "usdkrw"]).catch((e) => {
+        console.error("[yfinance]", e);
+        return [] as Quote[];
+      }),
+      supabase
+      .from('stock_rank_snapshot')
+      // ⭐ [수정 완료] 수집기가 담아두는 진짜 누적 거래량 컬럼인 'volume:acml_volume'을 select 절에 명시적으로 추가
+      .select('rank, code, name, price, change_pct, bucket, base_ts, volume:acml_volume')
+      .in('bucket', ['trade_value', 'rise', 'fall', 'volume']) 
+      .order('base_ts', { ascending: false })
+      .order('rank', { ascending: true })
+    ]);
+
+    const items: NewsItem[] = [...market, ...macro];
+    const keywords = extractTrendingKeywordNames(items, 8);
+    let heroText = "";
+    try {
+      heroText = await summarizeMarket(items.map((i) => i.cleanTitle));
+    } catch {
+      heroText = "";
+    }
+
+    return {
+      items,
+      keywords,
+      heroText,
+      kospi: kospi as IndexQuote | null,
+      kosdaq: kosdaq as IndexQuote | null,
+      quotes,
+      rankingsData: supabaseRes?.data || null,
+      fetchedAt: new Date().toISOString(),
+      error: null as string | null,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      items: [] as NewsItem[],
+      keywords: [] as string[],
+      heroText: "",
+      kospi: null as IndexQuote | null,
+      kosdaq: null as IndexQuote | null,
+      quotes: [] as Quote[],
+      rankingsData: null,
+      fetchedAt: new Date().toISOString(),
+      error: msg,
+    };
   }
+}
+
+function formatPrice(n: number, decimals = 2): string {
+  return n.toLocaleString("ko-KR", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
+function indexToKpi(q: IndexQuote | null, label: string): HeroKpi {
+  if (!q) return { label, value: "—", hint: "데이터 없음" };
+  return {
+    label,
+    value: formatPrice(q.price),
+    change: `${q.change >= 0 ? "+" : ""}${formatPrice(q.change)}`,
+    changePct: q.changePct,
+    sign: q.sign,
+  };
+}
+
+function quoteToKpi(
+  quotes: Quote[],
+  key: Quote["key"],
+  label: string,
+  decimals = 2
+): HeroKpi {
+  const q = quotes.find((x) => x.key === key);
+  if (!q) return { label, value: "—", hint: "데이터 없음" };
+  return {
+    label,
+    value: formatPrice(q.price, decimals),
+    change: `${q.change >= 0 ? "+" : ""}${formatPrice(q.change, decimals)}`,
+    changePct: q.changePct,
+    sign: q.sign,
+  };
+}
+
+export default async function Home() {
+  const {
+    items,
+    keywords,
+    heroText,
+    kospi,
+    kosdaq,
+    quotes,
+    rankingsData,
+    fetchedAt,
+    error,
+  } = await fetchDashboard();
+
+  const latestTimestamp = rankingsData && rankingsData.length > 0 ? rankingsData[0].base_ts : null;
+
+  const latestRankingsData = rankingsData && latestTimestamp ? rankingsData.filter((item: any) => item.base_ts === latestTimestamp) : null;
+
+  const today = new Date().toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const fallbackHero =
+    "오늘의 시장은 '주요 경제 이슈'와 '시장 변동성'에 주목하고 있습니다.";
+  
+  const topCards = items.slice(0, 4);
+
+  const kpis: HeroKpi[] = [
+    indexToKpi(kospi, "KOSPI"),
+    indexToKpi(kosdaq, "KOSDAQ"),
+    quoteToKpi(quotes, "nasdaq", "NASDAQ"),
+    quoteToKpi(quotes, "usdkrw", "USD/KRW", 2),
+  ];
 
   return (
     <main className="min-h-screen bg-[#F8FAFC]">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
+      {/* Top bar */}
+      <header className="border-b border-slate-200/90 bg-white/95 backdrop-blur">
+        <div className="mx-auto px-6 py-6 flex items-center justify-between">
           <Logo variant="light" />
-          <Link href="/" className="text-sm text-slate-500 hover:text-navy">
-            ← 홈으로
-          </Link>
         </div>
       </header>
 
-      <div className="mx-auto max-w-6xl px-4 py-6 md:py-10 grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <article className="lg:col-span-3 space-y-6">
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold text-navy leading-snug">
-              {title}
-            </h1>
-            <div className="mt-2 text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-1">
-              <span className="font-semibold text-slate-700">
-                {source || "출처 미상"}
-              </span>
-              <span>{formatDateTime(pubDate)}</span>
-              <a
-                href={link}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="text-point-blue hover:underline"
-              >
-                원문 열기 ↗
-              </a>
+      {/* 1600px 중앙 정렬 컨테이너 */}
+      <div className="mx-auto max-w-[1600px] px-8 py-10">
+        {error && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3 text-sm mb-6">
+            뉴스 API 호출에 실패했습니다: {error}
+          </div>
+        )}
+
+        {/* 🌟 2분할 대형 레이아웃 시작 */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          
+          {/* =========================================================
+              LEFT COLUMN: 메인 콘텐츠 영역 (lg:col-span-2)
+             ========================================================= */}
+          <div className="lg:col-span-2 space-y-6">
+            
+            {/* [층 1] KPI & AI 요약 (HeroCard) */}
+            <HeroCard
+              date={today}
+              text={heroText || fallbackHero}
+              kpis={kpis}
+              fetchedAt={fetchedAt}
+            />
+
+            {/* [층 2] 복구 완료: 실시간 뉴스 토픽 섹션 */}
+            <section className="card p-5 md:p-6 bg-white border border-slate-100 shadow-sm rounded-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-navy flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[10px] text-blue-700">
+                    N
+                  </span>
+                  실시간 뉴스 토픽
+                </h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {topCards.length > 0 ? (
+                  topCards.map((it, idx) => (
+                    <NewsCard key={it.id} item={it} rank={idx + 1} />
+                  ))
+                ) : (
+                  <EmptyCards />
+                )}
+              </div>
+            </section>
+
+            {/* [층 3] 최하단 트렌딩 키워드 섹션 */}
+            <div className="space-y-6">
+              <TrendingKeywords keywords={keywords} items={items.slice(0, 14)} />
             </div>
+
           </div>
 
-          {/* [Top] AI Summary */}
-          <section className="card p-5 md:p-6 border-l-4 border-point-blue">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-navy">AI 3줄 요약</h2>
-              <span className="chip">Pick-Ant AI</span>
-            </div>
-            {aiError ? (
-              <p className="mt-3 text-sm text-amber-700">
-                요약을 생성하지 못했습니다: {aiError}
-              </p>
-            ) : summary.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">
-                요약을 생성하지 못했습니다.
-              </p>
-            ) : (
-              <ol className="mt-3 space-y-2 list-decimal list-inside text-sm text-slate-800">
-                {summary.map((s, i) => (
-                  <li key={i}>{s}</li>
-                ))}
-              </ol>
-            )}
-            {keywords.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {keywords.map((k) => (
-                  <span key={k} className="chip">
-                    #{k}
+          {/* =========================================================
+              RIGHT COLUMN: 사이드바 콘텐츠 영역 (aside)
+             ========================================================= */}
+          <aside className="space-y-6">
+            
+            {/* [층 1] 오늘의 이슈 키워드 섹션 */}
+            <section className="card p-5 bg-white border border-slate-100 shadow-sm rounded-2xl lg:min-h-[178px] flex flex-col justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-[10px] text-amber-700">
+                    🔥
                   </span>
-                ))}
+                  오늘의 이슈 키워드
+                </h2>
+                <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                  개미들이 가장 많이 검색하고 있는 진짜 핫한 트렌드 키워드가 정밀하게 수집됩니다.
+                </p>
               </div>
-            )}
-          </section>
-
-          {/* [Body] Interactive body */}
-          <section className="card p-5 md:p-6">
-            <h2 className="text-sm font-bold text-navy mb-3">원문 요약</h2>
-            {description ? (
-              <HighlightedBody text={description} glossary={glossary} />
-            ) : (
-              <p className="text-sm text-slate-500">본문 스니펫이 없습니다.</p>
-            )}
-            <p className="mt-4 text-xs text-slate-400">
-              * 본문은 네이버 뉴스 검색 API가 제공하는 스니펫입니다. 전체
-              기사는 <a
-                href={link}
-                className="text-point-blue hover:underline"
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                원문 링크
-              </a>
-              를 확인하세요.
-            </p>
-          </section>
-        </article>
-
-        {/* [Side] Glossary */}
-        <aside className="lg:col-span-1 space-y-4">
-          <section className="card p-5">
-            <h2 className="text-sm font-bold text-navy">주요 개념 및 설명</h2>
-            {glossary.length === 0 ? (
-              <p className="mt-2 text-xs text-slate-500">
-                추출된 용어가 없습니다.
+              <p className="mt-4 text-xs text-slate-400 italic border-t border-dashed border-slate-100 pt-2">
+                팀원 컴포넌트 개발 대기 중...
               </p>
-            ) : (
-              <ul className="mt-3 space-y-3">
-                {glossary.map((g) => (
-                  <li key={g.term} className="text-sm">
-                    <div className="font-semibold text-navy">{g.term}</div>
-                    <div className="text-slate-600 text-xs mt-1 leading-relaxed">
-                      {g.definition}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+            </section>
 
-          <section className="card p-5 bg-navy text-white">
-            <h3 className="text-sm font-bold">읽는 팁</h3>
-            <p className="mt-2 text-xs text-white/70 leading-relaxed">
-              밑줄+하이라이트된 용어를 클릭하면 툴팁으로 쉬운 설명이 뜹니다.
-              사이드바의 용어 사전은 기사를 다 읽고 난 뒤 복습용으로 활용하세요.
-            </p>
-          </section>
-        </aside>
+            {/* [층 2] 종목 랭킹 리스트 섹션 */}
+            <StockRankingsSidebar rankingsData={latestRankingsData} />
+
+            {/* [층 3] 오늘의 개미 명언 위젯 */}
+            <div className="space-y-4">
+              <section className="overflow-hidden relative rounded-2xl">
+                <AntTipsWidget />
+              </section>
+            </div>
+
+          </aside>
+        </div>
+
+        <footer className="pt-10 text-center text-xs text-slate-400">
+          © Pick-Ant · News via Naver OpenAPI · Market via KIS/Yahoo Finance · AI via OpenAI
+        </footer>
       </div>
     </main>
+  );
+}
+
+function EmptyCards() {
+  return (
+    <>
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="rounded-xl border border-dashed border-slate-200 h-32 flex items-center justify-center text-xs text-slate-400"
+        >
+          카드 {i + 1}
+        </div>
+      ))}
+    </>
   );
 }
