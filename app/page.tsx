@@ -6,14 +6,34 @@ import { HeroCard, type HeroKpi } from "@/components/HeroCard";
 import { TrendingKeywords } from "@/components/TrendingKeywords";
 import { NewsCard } from "@/components/NewsCard";
 import { Logo } from "@/components/Logo";
+import { TodayIssueCard } from "@/components/TodayIssueCard";
+import { TodayRankCard } from "@/components/TodayRankCard";
+import { AntTipCard } from "@/components/AntTipCard";
 import type { NewsItem } from "@/lib/types";
 import { extractTrendingKeywordNames } from "@/lib/trending";
+import { readTradeValueTop, readLatestSnapshotTs, type RankRow } from "@/lib/rank";
+import {
+  fetchTodayFacts,
+  buildTodayIssuesLLM,
+  getAntTipOfHour,
+  type TodayIssue,
+} from "@/lib/today";
 
 export const revalidate = 60;
 
 async function fetchDashboard() {
   try {
-    const [market, macro, kospi, kosdaq, quotes] = await Promise.all([
+    // Phase 1: 외부 데이터 + DB facts 병렬 fetch
+    const [
+      market,
+      macro,
+      kospi,
+      kosdaq,
+      quotes,
+      facts,
+      trade,
+      snapshotTs,
+    ] = await Promise.all([
       searchNaverNews({ query: "증시", display: 20, sort: "date" }),
       searchNaverNews({ query: "한국은행 금리", display: 10, sort: "date" }),
       getIndexQuote("kospi").catch((e) => {
@@ -28,7 +48,25 @@ async function fetchDashboard() {
         console.error("[yfinance]", e);
         return [] as Quote[];
       }),
+      fetchTodayFacts().catch((e) => {
+        console.error("[today-facts]", e);
+        return null;
+      }),
+      readTradeValueTop(5).catch((e) => {
+        console.error("[trade-value]", e);
+        return [] as RankRow[];
+      }),
+      readLatestSnapshotTs().catch(() => null),
     ]);
+
+    // Phase 2: facts + 뉴스 헤드라인을 LLM에 넘겨 이슈 스토리 생성
+    const headlines = [...market, ...macro].map((i) => i.cleanTitle);
+    const issues: TodayIssue[] = facts
+      ? await buildTodayIssuesLLM(facts, headlines, 4).catch((e) => {
+          console.error("[today-issues:llm]", e);
+          return [] as TodayIssue[];
+        })
+      : [];
     const items: NewsItem[] = [...market, ...macro];
     const keywords = extractTrendingKeywordNames(items, 8);
     let heroText = "";
@@ -44,6 +82,9 @@ async function fetchDashboard() {
       kospi: kospi as IndexQuote | null,
       kosdaq: kosdaq as IndexQuote | null,
       quotes,
+      issues,
+      trade,
+      snapshotTs,
       fetchedAt: new Date().toISOString(),
       error: null as string | null,
     };
@@ -56,6 +97,9 @@ async function fetchDashboard() {
       kospi: null as IndexQuote | null,
       kosdaq: null as IndexQuote | null,
       quotes: [] as Quote[],
+      issues: [] as TodayIssue[],
+      trade: [] as RankRow[],
+      snapshotTs: null as Date | null,
       fetchedAt: new Date().toISOString(),
       error: msg,
     };
@@ -105,9 +149,13 @@ export default async function Home() {
     kospi,
     kosdaq,
     quotes,
+    issues,
+    trade,
+    snapshotTs,
     fetchedAt,
     error,
   } = await fetchDashboard();
+  const antTip = getAntTipOfHour();
   const today = new Date().toLocaleDateString("ko-KR", {
     year: "numeric",
     month: "2-digit",
@@ -174,39 +222,9 @@ export default async function Home() {
           </div>
 
           <aside className="space-y-4">
-            <section className="card p-5 lg:min-h-[150px]">
-              <h2 className="text-sm font-bold text-navy flex items-center gap-2">
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[10px] text-emerald-700">
-                  i
-                </span>
-                픽앤 한 줄
-              </h2>
-              <p className="mt-2 text-xs text-slate-500 leading-relaxed">
-                픽앤(Pick-Ant)은 네이버 뉴스와 GPT를 결합하여 오늘의 경제
-                이슈를 초보 투자자에게 쉬운 한국어로 전달합니다.
-              </p>
-              
-            </section>
-
-            <section className="card p-5 bg-navy text-white overflow-hidden relative">
-              <div
-                aria-hidden
-                className="absolute inset-0 opacity-30"
-                style={{
-                  backgroundImage:
-                    "radial-gradient(circle at 82% 15%, rgba(245,158,11,0.35), transparent 35%), radial-gradient(circle at 12% 88%, rgba(121,236,206,0.28), transparent 38%)",
-                }}
-              />
-              <h2 className="relative text-sm font-bold flex items-center gap-2">
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/15 text-[10px] text-white">
-                  !
-                </span>
-                오늘의 개미 팁
-              </h2>
-              <p className="mt-2 text-xs text-white/70 leading-relaxed">
-                제목만 보고 거래 결정 금지. 본문 + 출처 + 다른 기사 교차확인
-              </p>
-            </section>
+            <TodayIssueCard issues={issues} />
+            <TodayRankCard rows={trade} fetchedAt={snapshotTs} />
+            <AntTipCard emoji={antTip.emoji} tip={antTip.tip} />
           </aside>
         </div>
 
