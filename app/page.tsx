@@ -1,3 +1,4 @@
+import { createClient } from '@supabase/supabase-js'
 import { searchNaverNews } from "@/lib/naver";
 import { summarizeMarket } from "@/lib/openai";
 import { getIndexQuote, type IndexQuote } from "@/lib/kis";
@@ -8,12 +9,19 @@ import { NewsCard } from "@/components/NewsCard";
 import { Logo } from "@/components/Logo";
 import type { NewsItem } from "@/lib/types";
 import { extractTrendingKeywordNames } from "@/lib/trending";
+import { StockRankingsSidebar } from "@/components/StockRankingsSidebar";
+import { AntTipsWidget } from "@/components/AntTipsWidget";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 export const revalidate = 60;
 
 async function fetchDashboard() {
   try {
-    const [market, macro, kospi, kosdaq, quotes] = await Promise.all([
+    const [market, macro, kospi, kosdaq, quotes, supabaseRes] = await Promise.all([
       searchNaverNews({ query: "증시", display: 20, sort: "date" }),
       searchNaverNews({ query: "한국은행 금리", display: 10, sort: "date" }),
       getIndexQuote("kospi").catch((e) => {
@@ -28,7 +36,15 @@ async function fetchDashboard() {
         console.error("[yfinance]", e);
         return [] as Quote[];
       }),
+      supabase
+      .from('stock_rank_snapshot')
+      // ⭐ [수정 완료] 수집기가 담아두는 진짜 누적 거래량 컬럼인 'volume:acml_volume'을 select 절에 명시적으로 추가
+      .select('rank, code, name, price, change_pct, bucket, base_ts, volume:acml_volume')
+      .in('bucket', ['trade_value', 'rise', 'fall', 'volume']) 
+      .order('base_ts', { ascending: false })
+      .order('rank', { ascending: true })
     ]);
+
     const items: NewsItem[] = [...market, ...macro];
     const keywords = extractTrendingKeywordNames(items, 8);
     let heroText = "";
@@ -37,6 +53,7 @@ async function fetchDashboard() {
     } catch {
       heroText = "";
     }
+
     return {
       items,
       keywords,
@@ -44,6 +61,7 @@ async function fetchDashboard() {
       kospi: kospi as IndexQuote | null,
       kosdaq: kosdaq as IndexQuote | null,
       quotes,
+      rankingsData: supabaseRes?.data || null,
       fetchedAt: new Date().toISOString(),
       error: null as string | null,
     };
@@ -56,6 +74,7 @@ async function fetchDashboard() {
       kospi: null as IndexQuote | null,
       kosdaq: null as IndexQuote | null,
       quotes: [] as Quote[],
+      rankingsData: null,
       fetchedAt: new Date().toISOString(),
       error: msg,
     };
@@ -105,9 +124,15 @@ export default async function Home() {
     kospi,
     kosdaq,
     quotes,
+    rankingsData,
     fetchedAt,
     error,
   } = await fetchDashboard();
+
+  const latestTimestamp = rankingsData && rankingsData.length > 0 ? rankingsData[0].base_ts : null;
+
+  const latestRankingsData = rankingsData && latestTimestamp ? rankingsData.filter((item: any) => item.base_ts === latestTimestamp) : null;
+
   const today = new Date().toLocaleDateString("ko-KR", {
     year: "numeric",
     month: "2-digit",
@@ -115,6 +140,7 @@ export default async function Home() {
   });
   const fallbackHero =
     "오늘의 시장은 '주요 경제 이슈'와 '시장 변동성'에 주목하고 있습니다.";
+  
   const topCards = items.slice(0, 4);
 
   const kpis: HeroKpi[] = [
@@ -133,84 +159,95 @@ export default async function Home() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1600px] px-8 py-10 space-y-6">
+      {/* 1600px 중앙 정렬 컨테이너 */}
+      <div className="mx-auto max-w-[1600px] px-8 py-10">
         {error && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3 text-sm">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3 text-sm mb-6">
             뉴스 API 호출에 실패했습니다: {error}
           </div>
         )}
 
-        <HeroCard
-          date={today}
-          text={heroText || fallbackHero}
-          kpis={kpis}
-          fetchedAt={fetchedAt}
-        />
-
-        {/* Issue-weighted cards */}
-        <section className="card p-5 md:p-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-navy flex items-center gap-2">
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[10px] text-blue-700">
-                N
-              </span>
-              실시간 뉴스 토픽
-            </h2>
-          </div>
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {topCards.length > 0 ? (
-              topCards.map((it, idx) => (
-                <NewsCard key={it.id} item={it} rank={idx + 1} />
-              ))
-            ) : (
-              <EmptyCards />
-            )}
-          </div>
-        </section>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* 🌟 2분할 대형 레이아웃 시작 */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          
+          {/* =========================================================
+              LEFT COLUMN: 메인 콘텐츠 영역 (lg:col-span-2)
+             ========================================================= */}
           <div className="lg:col-span-2 space-y-6">
-            <TrendingKeywords keywords={keywords} items={items.slice(0, 14)} />
+            
+            {/* [층 1] KPI & AI 요약 (HeroCard) */}
+            <HeroCard
+              date={today}
+              text={heroText || fallbackHero}
+              kpis={kpis}
+              fetchedAt={fetchedAt}
+            />
+
+            {/* [층 2] 복구 완료: 실시간 뉴스 토픽 섹션 */}
+            <section className="card p-5 md:p-6 bg-white border border-slate-100 shadow-sm rounded-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-navy flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[10px] text-blue-700">
+                    N
+                  </span>
+                  실시간 뉴스 토픽
+                </h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {topCards.length > 0 ? (
+                  topCards.map((it, idx) => (
+                    <NewsCard key={it.id} item={it} rank={idx + 1} />
+                  ))
+                ) : (
+                  <EmptyCards />
+                )}
+              </div>
+            </section>
+
+            {/* [층 3] 최하단 트렌딩 키워드 섹션 */}
+            <div className="space-y-6">
+              <TrendingKeywords keywords={keywords} items={items.slice(0, 14)} />
+            </div>
+
           </div>
 
-          <aside className="space-y-4">
-            <section className="card p-5 lg:min-h-[150px]">
-              <h2 className="text-sm font-bold text-navy flex items-center gap-2">
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[10px] text-emerald-700">
-                  i
-                </span>
-                픽앤 한 줄
-              </h2>
-              <p className="mt-2 text-xs text-slate-500 leading-relaxed">
-                픽앤(Pick-Ant)은 네이버 뉴스와 GPT를 결합하여 오늘의 경제
-                이슈를 초보 투자자에게 쉬운 한국어로 전달합니다.
+          {/* =========================================================
+              RIGHT COLUMN: 사이드바 콘텐츠 영역 (aside)
+             ========================================================= */}
+          <aside className="space-y-6">
+            
+            {/* [층 1] 오늘의 이슈 키워드 섹션 */}
+            <section className="card p-5 bg-white border border-slate-100 shadow-sm rounded-2xl lg:min-h-[178px] flex flex-col justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-[10px] text-amber-700">
+                    🔥
+                  </span>
+                  오늘의 이슈 키워드
+                </h2>
+                <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                  개미들이 가장 많이 검색하고 있는 진짜 핫한 트렌드 키워드가 정밀하게 수집됩니다.
+                </p>
+              </div>
+              <p className="mt-4 text-xs text-slate-400 italic border-t border-dashed border-slate-100 pt-2">
+                팀원 컴포넌트 개발 대기 중...
               </p>
-              
             </section>
 
-            <section className="card p-5 bg-navy text-white overflow-hidden relative">
-              <div
-                aria-hidden
-                className="absolute inset-0 opacity-30"
-                style={{
-                  backgroundImage:
-                    "radial-gradient(circle at 82% 15%, rgba(245,158,11,0.35), transparent 35%), radial-gradient(circle at 12% 88%, rgba(121,236,206,0.28), transparent 38%)",
-                }}
-              />
-              <h2 className="relative text-sm font-bold flex items-center gap-2">
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/15 text-[10px] text-white">
-                  !
-                </span>
-                오늘의 개미 팁
-              </h2>
-              <p className="mt-2 text-xs text-white/70 leading-relaxed">
-                제목만 보고 거래 결정 금지. 본문 + 출처 + 다른 기사 교차확인
-              </p>
-            </section>
+            {/* [층 2] 종목 랭킹 리스트 섹션 */}
+            <StockRankingsSidebar rankingsData={latestRankingsData} />
+
+            {/* [층 3] 오늘의 개미 명언 위젯 */}
+            <div className="space-y-4">
+              <section className="overflow-hidden relative rounded-2xl">
+                <AntTipsWidget />
+              </section>
+            </div>
+
           </aside>
         </div>
 
-        <footer className="pt-6 text-center text-xs text-slate-500">
+        <footer className="pt-10 text-center text-xs text-slate-400">
           © Pick-Ant · News via Naver OpenAPI · Market via KIS/Yahoo Finance · AI via OpenAI
         </footer>
       </div>
