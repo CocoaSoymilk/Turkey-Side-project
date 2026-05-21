@@ -2,23 +2,24 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { NewsItem } from "@/lib/types";
+import type { NewsItem, TrendKeyword } from "@/lib/types";
 import { formatRelativeTime } from "@/lib/format";
-import { filterNewsByKeyword } from "@/lib/trending";
 
 export function TrendingKeywords({
-  keywords,
+  trends,
   items,
 }: {
-  keywords: string[];
+  trends: TrendKeyword[];
   items: NewsItem[];
 }) {
-  const [selected, setSelected] = useState<string>(keywords[0] ?? "");
+  const [selected, setSelected] = useState<string>(trends[0]?.id ?? "");
 
   const filtered = useMemo(() => {
-    if (!selected) return items.slice(0, 8);
-    return filterNewsByKeyword(items, selected).slice(0, 8);
-  }, [items, selected]);
+    const trend = trends.find((item) => item.id === selected);
+    return (trend?.articles.length ? trend.articles : items).slice(0, 8);
+  }, [items, selected, trends]);
+
+  const selectedTrend = trends.find((item) => item.id === selected);
 
   return (
     <section className="card-dark p-5 md:p-6">
@@ -27,8 +28,8 @@ export function TrendingKeywords({
       </div>
 
       <div className="mt-4 flex flex-wrap items-end gap-2">
-        {keywords.map((k, idx) => {
-          const active = selected === k;
+        {trends.map((trend, idx) => {
+          const active = selected === trend.id;
           const sizeClass =
             idx === 0
               ? "text-base"
@@ -39,20 +40,24 @@ export function TrendingKeywords({
                   : "text-xs";
           return (
             <button
-              key={k}
+              key={trend.id}
               type="button"
-              onClick={() => setSelected(k)}
+              onClick={() => setSelected(trend.id)}
               className={
                 active
                   ? `rounded-full border border-accent-gold bg-white/15 px-3 py-1.5 font-semibold text-white ${sizeClass}`
                   : `rounded-full border border-white/40 px-3 py-1.5 text-white/90 hover:border-white hover:bg-white/5 transition-colors duration-200 ${sizeClass}`
               }
             >
-              #{k}
+              #{trend.keyword}
             </button>
           );
         })}
       </div>
+
+      {selectedTrend?.summary && (
+        <p className="mt-3 text-sm text-white/75">{selectedTrend.summary}</p>
+      )}
 
       <div className="mt-5 rounded-3xl bg-white/90 p-4 min-h-[220px]">
         {filtered.length > 0 ? (

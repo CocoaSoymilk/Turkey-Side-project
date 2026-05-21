@@ -3,11 +3,14 @@ import { searchNaverNews } from "@/lib/naver";
 import { summarizeMarket } from "@/lib/openai";
 import { getIndexQuote, type IndexQuote } from "@/lib/kis";
 import { getQuotes, type Quote } from "@/lib/market";
+import { fetchRecentArticlesFromDb, saveTrendKeywordsToDb } from "@/lib/db";
+import { buildTrendKeywords } from "@/lib/trendPipeline";
 import { HeroCard, type HeroKpi } from "@/components/HeroCard";
 import { TrendingKeywords } from "@/components/TrendingKeywords";
 import { NewsCard } from "@/components/NewsCard";
 import { Logo } from "@/components/Logo";
-import type { NewsItem } from "@/lib/types";
+
+import type { NewsItem, TrendKeyword } from "@/lib/types";
 import { extractTrendingKeywordNames } from "@/lib/trending";
 import { StockRankingsSidebar } from "@/components/StockRankingsSidebar";
 import { AntTipsWidget } from "@/components/AntTipsWidget";
@@ -18,10 +21,14 @@ const supabase = createClient(
 )
 
 export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 async function fetchDashboard() {
   try {
-    const [market, macro, kospi, kosdaq, quotes, supabaseRes] = await Promise.all([
+   
+    const [dbItems, market, macro, kospi, kosdaq, quotes, supabaseRes] = await Promise.all([
+              fetchRecentArticlesFromDb(80),
+
       searchNaverNews({ query: "증시", display: 20, sort: "date" }),
       searchNaverNews({ query: "한국은행 금리", display: 10, sort: "date" }),
       getIndexQuote("kospi").catch((e) => {
@@ -45,8 +52,10 @@ async function fetchDashboard() {
       .order('rank', { ascending: true })
     ]);
 
-    const items: NewsItem[] = [...market, ...macro];
-    const keywords = extractTrendingKeywordNames(items, 8);
+
+    const items: NewsItem[] = dbItems.length > 0 ? dbItems : [...market, ...macro];
+    const keywords = await buildTrendKeywords(items, 8);
+
     let heroText = "";
     try {
       heroText = await summarizeMarket(items.map((i) => i.cleanTitle));
@@ -56,7 +65,7 @@ async function fetchDashboard() {
 
     return {
       items,
-      keywords,
+      trends,
       heroText,
       kospi: kospi as IndexQuote | null,
       kosdaq: kosdaq as IndexQuote | null,
@@ -69,7 +78,7 @@ async function fetchDashboard() {
     const msg = err instanceof Error ? err.message : String(err);
     return {
       items: [] as NewsItem[],
-      keywords: [] as string[],
+      trends: [] as TrendKeyword[],
       heroText: "",
       kospi: null as IndexQuote | null,
       kosdaq: null as IndexQuote | null,
@@ -119,7 +128,7 @@ function quoteToKpi(
 export default async function Home() {
   const {
     items,
-    keywords,
+    trends,
     heroText,
     kospi,
     kosdaq,
@@ -174,7 +183,9 @@ export default async function Home() {
               LEFT COLUMN: 메인 콘텐츠 영역 (lg:col-span-2)
              ========================================================= */}
           <div className="lg:col-span-2 space-y-6">
-            
+
+            <TrendingKeywords trends={trends} items={items} />
+
             {/* [층 1] KPI & AI 요약 (HeroCard) */}
             <HeroCard
               date={today}

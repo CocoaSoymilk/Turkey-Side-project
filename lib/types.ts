@@ -14,6 +14,24 @@ export type NewsItem = NaverNewsItem & {
   keywords?: string[];
 };
 
+export type TrendKeyword = {
+  id: string;
+  keyword: string;
+  query: string;
+  summary: string;
+  score: number;
+  source: "llm" | "rules";
+  evidenceTitles: string[];
+  articles: NewsItem[];
+};
+
+export type LlmTrendKeyword = {
+  keyword: string;
+  query: string;
+  summary: string;
+  evidenceTitles: string[];
+};
+
 export type SummaryResult = {
   summary: string[];
   keywords: string[];
