@@ -11,7 +11,6 @@ import { NewsCard } from "@/components/NewsCard";
 import { Logo } from "@/components/Logo";
 
 import type { NewsItem, TrendKeyword } from "@/lib/types";
-import { extractTrendingKeywordNames } from "@/lib/trending";
 import { StockRankingsSidebar } from "@/components/StockRankingsSidebar";
 import { AntTipsWidget } from "@/components/AntTipsWidget";
 
@@ -54,7 +53,8 @@ async function fetchDashboard() {
 
 
     const items: NewsItem[] = dbItems.length > 0 ? dbItems : [...market, ...macro];
-    const keywords = await buildTrendKeywords(items, 8);
+    const trends = await buildTrendKeywords(items, 8);
+    await saveTrendKeywordsToDb(trends);
 
     let heroText = "";
     try {
@@ -184,7 +184,7 @@ export default async function Home() {
              ========================================================= */}
           <div className="lg:col-span-2 space-y-6">
 
-            <TrendingKeywords trends={trends} items={items} />
+            {/* <TrendingKeywords trends={trends} items={items} /> */}
 
             {/* [층 1] KPI & AI 요약 (HeroCard) */}
             <HeroCard
@@ -217,7 +217,7 @@ export default async function Home() {
 
             {/* [층 3] 최하단 트렌딩 키워드 섹션 */}
             <div className="space-y-6">
-              <TrendingKeywords keywords={keywords} items={items.slice(0, 14)} />
+              <TrendingKeywords trends={trends} items={items.slice(0, 14)} />
             </div>
 
           </div>
