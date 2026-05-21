@@ -13,6 +13,8 @@ import { Logo } from "@/components/Logo";
 import type { NewsItem, TrendKeyword } from "@/lib/types";
 import { StockRankingsSidebar } from "@/components/StockRankingsSidebar";
 import { AntTipsWidget } from "@/components/AntTipsWidget";
+import { TodayIssueCard } from "@/components/TodayIssueCard";
+import { fetchTodayFacts, buildTodayIssuesLLM, type TodayIssue } from "@/lib/today";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -56,6 +58,18 @@ async function fetchDashboard() {
     const trends = await buildTrendKeywords(items, 8);
     await saveTrendKeywordsToDb(trends);
 
+    let todayIssues: TodayIssue[] = [];
+    try {
+      const facts = await fetchTodayFacts();
+      todayIssues = await buildTodayIssuesLLM(
+        facts,
+        items.map((i) => i.cleanTitle),
+        4
+      );
+    } catch (e) {
+      console.error("[today-issues]", e);
+    }
+
     let heroText = "";
     try {
       heroText = await summarizeMarket(items.map((i) => i.cleanTitle));
@@ -66,6 +80,7 @@ async function fetchDashboard() {
     return {
       items,
       trends,
+      todayIssues,
       heroText,
       kospi: kospi as IndexQuote | null,
       kosdaq: kosdaq as IndexQuote | null,
@@ -79,6 +94,7 @@ async function fetchDashboard() {
     return {
       items: [] as NewsItem[],
       trends: [] as TrendKeyword[],
+      todayIssues: [] as TodayIssue[],
       heroText: "",
       kospi: null as IndexQuote | null,
       kosdaq: null as IndexQuote | null,
@@ -129,6 +145,7 @@ export default async function Home() {
   const {
     items,
     trends,
+    todayIssues,
     heroText,
     kospi,
     kosdaq,
@@ -227,23 +244,8 @@ export default async function Home() {
              ========================================================= */}
           <aside className="space-y-6">
             
-            {/* [층 1] 오늘의 이슈 키워드 섹션 */}
-            <section className="card p-5 bg-white border border-slate-100 shadow-sm rounded-2xl lg:min-h-[178px] flex flex-col justify-between">
-              <div>
-                <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-[10px] text-amber-700">
-                    🔥
-                  </span>
-                  오늘의 이슈 키워드
-                </h2>
-                <p className="mt-2 text-xs text-slate-500 leading-relaxed">
-                  개미들이 가장 많이 검색하고 있는 진짜 핫한 트렌드 키워드가 정밀하게 수집됩니다.
-                </p>
-              </div>
-              <p className="mt-4 text-xs text-slate-400 italic border-t border-dashed border-slate-100 pt-2">
-                팀원 컴포넌트 개발 대기 중...
-              </p>
-            </section>
+            {/* [층 1] 오늘의 이슈 (feature/today-insights 로직) */}
+            <TodayIssueCard issues={todayIssues} />
 
             {/* [층 2] 종목 랭킹 리스트 섹션 */}
             <StockRankingsSidebar rankingsData={latestRankingsData} />
