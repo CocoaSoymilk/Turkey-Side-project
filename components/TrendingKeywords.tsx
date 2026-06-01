@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { NewsItem, TrendKeyword } from "@/lib/types";
 import { formatRelativeTime } from "@/lib/format";
+
+const INITIAL_VISIBLE_ARTICLES = 3;
+const MAX_ARTICLES_PER_TREND = 8;
 
 export function TrendingKeywords({
   trends,
@@ -13,18 +16,34 @@ export function TrendingKeywords({
   items: NewsItem[];
 }) {
   const [selected, setSelected] = useState<string>(trends[0]?.id ?? "");
+  const [showAll, setShowAll] = useState(false);
+
+  useEffect(() => {
+    if (!trends.some((trend) => trend.id === selected)) {
+      setSelected(trends[0]?.id ?? "");
+      setShowAll(false);
+    }
+  }, [selected, trends]);
+
+  const selectedTrend = trends.find((item) => item.id === selected);
 
   const filtered = useMemo(() => {
     const trend = trends.find((item) => item.id === selected);
-    return (trend?.articles.length ? trend.articles : items).slice(0, 8);
+    return (trend?.articles.length ? trend.articles : items).slice(
+      0,
+      MAX_ARTICLES_PER_TREND
+    );
   }, [items, selected, trends]);
 
-  const selectedTrend = trends.find((item) => item.id === selected);
+  const visibleArticles = showAll
+    ? filtered
+    : filtered.slice(0, INITIAL_VISIBLE_ARTICLES);
+  const hasMore = filtered.length > INITIAL_VISIBLE_ARTICLES;
 
   return (
     <section className="card-dark p-5 md:p-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-white">트렌딩 키워드</h2>
+        <h2 className="text-xl font-bold text-white">트렌드 키워드</h2>
       </div>
 
       <div className="mt-4 flex flex-wrap items-end gap-2">
@@ -42,7 +61,10 @@ export function TrendingKeywords({
             <button
               key={trend.id}
               type="button"
-              onClick={() => setSelected(trend.id)}
+              onClick={() => {
+                setSelected(trend.id);
+                setShowAll(false);
+              }}
               className={
                 active
                   ? `rounded-full border border-accent-gold bg-white/15 px-3 py-1.5 font-semibold text-white ${sizeClass}`
@@ -60,24 +82,35 @@ export function TrendingKeywords({
       )}
 
       <div className="mt-5 rounded-3xl bg-white/90 p-4 min-h-[220px]">
-        {filtered.length > 0 ? (
-          <ul className="space-y-2">
-            {filtered.map((item) => (
-              <li key={item.id}>
-                <Link
-                  href={`/article/${item.id}?title=${encodeURIComponent(item.cleanTitle)}&desc=${encodeURIComponent(item.cleanDescription)}&link=${encodeURIComponent(item.link)}&source=${encodeURIComponent(item.source)}&pubDate=${encodeURIComponent(item.pubDate)}`}
-                  className="block rounded-xl border border-slate-200 bg-white px-3 py-2 hover:border-slate-300 hover:bg-slate-50 transition-all duration-200"
-                >
-                  <p className="text-sm font-medium text-navy line-clamp-1">
-                    {item.cleanTitle}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {item.source} · {formatRelativeTime(item.pubDate)}
-                  </p>
-                </Link>
-              </li>
-            ))}
-          </ul>
+        {visibleArticles.length > 0 ? (
+          <>
+            <ul className="space-y-2">
+              {visibleArticles.map((item) => (
+                <li key={item.id}>
+                  <Link
+                    href={`/article/${item.id}?title=${encodeURIComponent(item.cleanTitle)}&desc=${encodeURIComponent(item.cleanDescription)}&link=${encodeURIComponent(item.link)}&source=${encodeURIComponent(item.source)}&pubDate=${encodeURIComponent(item.pubDate)}`}
+                    className="block rounded-xl border border-slate-200 bg-white px-3 py-2 hover:border-slate-300 hover:bg-slate-50 transition-all duration-200"
+                  >
+                    <p className="text-sm font-medium text-navy line-clamp-1">
+                      {item.cleanTitle}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {item.source} · {formatRelativeTime(item.pubDate)}
+                    </p>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            {hasMore && (
+              <button
+                type="button"
+                onClick={() => setShowAll((value) => !value)}
+                className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-navy hover:border-slate-300 hover:bg-slate-50 transition-colors duration-200"
+              >
+                {showAll ? "접기" : "더보기"}
+              </button>
+            )}
+          </>
         ) : (
           <div className="h-full min-h-[188px] flex items-center justify-center text-sm text-slate-500">
             선택한 키워드에 해당하는 뉴스가 없습니다.
