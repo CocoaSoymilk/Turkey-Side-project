@@ -147,26 +147,25 @@ export async function buildTrendKeywords(
   const candidates = llmTrends.length > 0 ? llmTrends : fallback;
   const rankedFallback = selectTrendingKeywords(items, topN);
 
-  const trends = await Promise.all(
-    candidates.map(async (candidate, index) => {
-      const existingArticles = attachExistingArticles(candidate, items);
-      const articles = await hydrateArticles(candidate, existingArticles);
-      const fallbackScore =
-        rankedFallback.find((item) => item.keyword === candidate.keyword)?.score ??
-        topN - index;
+  const trends: TrendKeyword[] = [];
+  for (const [index, candidate] of candidates.entries()) {
+    const existingArticles = attachExistingArticles(candidate, items);
+    const articles = await hydrateArticles(candidate, existingArticles);
+    const fallbackScore =
+      rankedFallback.find((item) => item.keyword === candidate.keyword)?.score ??
+      topN - index;
 
-      return {
-        id: slugTrendId(candidate.keyword, index),
-        keyword: candidate.keyword,
-        query: candidate.query || candidate.keyword,
-        summary: candidate.summary,
-        score: fallbackScore,
-        source: llmTrends.length > 0 ? "llm" : "rules",
-        evidenceTitles: candidate.evidenceTitles,
-        articles,
-      } satisfies TrendKeyword;
-    })
-  );
+    trends.push({
+      id: slugTrendId(candidate.keyword, index),
+      keyword: candidate.keyword,
+      query: candidate.query || candidate.keyword,
+      summary: candidate.summary,
+      score: fallbackScore,
+      source: llmTrends.length > 0 ? "llm" : "rules",
+      evidenceTitles: candidate.evidenceTitles,
+      articles,
+    });
+  }
 
   return trends.filter((trend) => trend.articles.length > 0).slice(0, topN);
 }
