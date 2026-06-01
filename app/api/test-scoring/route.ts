@@ -1,30 +1,32 @@
 import { NextResponse } from "next/server";
 import { runNewsScoringPipeline } from "@/lib/scoring"; 
 
-// Next.js에게 이 API는 호출될 때마다 새로 연산하는 동적 API임을 명시
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // 🔒 [보안 장치] 운영(배포) 환경인 배포 서버에서는 이 테스트 페이지를 아예 404로 숨겨버립니다.
-    // 오직 로컬(개발 환경)에서 실행할 때만 아래 알고리즘 로직이 작동합니다.
+    // 🔒 [보안 가드] Vercel Cron 스케줄러의 정당한 호출인지 헤더 검증
+    // 로컬 개발 환경(development)에서는 검증을 건너뛰어 자유로운 테스트 지원
     if (process.env.NODE_ENV === 'production') {
-      return NextResponse.json(
-        { error: '운영 환경에서는 제공되지 않는 페이지입니다.' }, 
-        { status: 404 }
-      );
+      const authHeader = request.headers.get('authorization');
+      if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+        return NextResponse.json(
+          { error: '인증되지 않은 요청입니다.' }, 
+          { status: 401 }
+        );
+      }
     }
 
-    // 우리가 만든 알고리즘 함수 강제 실행!
+    // 알고리즘 파이프라인 가동
     await runNewsScoringPipeline();
     
     return NextResponse.json({ 
       success: true, 
-      message: "알고리즘 실행 성공! 터미널 창을 확인하세요." 
+      message: "1시간 주기 실시간 뉴스 토픽 정렬 알고리즘 연산 및 mart_home 적재 성공!" 
     });
 
   } catch (error: any) {
-    console.error("❌ 테스트 라우트 연산 중 에러:", error);
+    console.error("❌ 배치 연산 중 서버 에러:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

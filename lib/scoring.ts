@@ -11,13 +11,6 @@ interface NewsItem {
   pub_dt: string;
 }
 
-interface StockItem {
-  name: string;
-  change_pct: string | number;
-  price: string | number;
-  acml_volume: string | number;
-}
-
 interface ProcessedNews {
   news_id: string | number;
   title: string;
@@ -35,10 +28,11 @@ function anyTypeStockSnapshots(snapshots: any[]): any[] {
 }
 
 export async function runNewsScoringPipeline() {
-  console.log("⏱️ [알고리즘 고도화] 거래대금 반영 및 중복 제거 연산 시작...");
+  console.log("⏱️ [알고리즘 최적화] 타임존 보정 및 대량 적재 연산 시작...");
   
   const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
+  // ⏰ [타임존 버그 해결] UTC 기준 시차 오류를 방지하고 항상 한국 표준시(KST) YYYY-MM-DD 생성
+  const todayStr = now.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
 
   // 1. 데이터 수집
   const { data: recentNews, error: newsError } = await supabase
@@ -62,8 +56,10 @@ export async function runNewsScoringPipeline() {
   }
 
   const processedResults: ProcessedNews[] = [];
-
   const typedNews = recentNews as NewsItem[];
+  
+  // 🚀 [성능 최적화 1] 루프 내부 반복 맵핑을 방지하기 위해 주식 스냅샷 데이터를 외부에서 1회만 미리 변환
+  const stocks = anyTypeStockSnapshots(stockSnapshots);
 
   // 2. 뉴스별 스코어 연산
   for (const news of typedNews) {
@@ -73,7 +69,6 @@ export async function runNewsScoringPipeline() {
     const freshnessBonus = deltaTimeHours < 1 ? 2.0 : 1.0; 
     const timeDecay = Math.pow(deltaTimeHours + 1, 2.5); 
 
-    // 단어 토큰 정제
     const words = news.title
       .split(/\s+/)
       .map(w => w.replace(/[^\wㄱ-ㅎㅏ-ㅣ가-힣]/g, ''))
@@ -90,7 +85,8 @@ export async function runNewsScoringPipeline() {
 
     let maxFinanceBonus = 0;
 
-    for (const stock of anyTypeStockSnapshots(stockSnapshots)) {
+    // 🚀 [성능 최적화 2] 미리 캐싱해둔 stocks 배열을 순회하여 불필요한 연산 제거
+    for (const stock of stocks) {
       const isDerivative = /(레버리지|인버스|KODEX|TIGER|SOL|RISE|ETN)/i.test(stock.name);
       if (isDerivative) continue;
 
@@ -167,22 +163,24 @@ export async function runNewsScoringPipeline() {
   })));
 
   // 5. mart_home 테이블 적재
-  console.log(`💾 최종 ${finalTop4.length}개의 데이터를 mart_home에 적재(upsert)합니다.`);
-  for (const item of finalTop4) {
-    const { error: insertError } = await supabase
-      .from('mart_home')
-      .upsert({
-        news_id: item.news_id,
-        rank_score: item.rank_score,
-        base_dt: todayStr,
-        daily_brief: "" 
-      }, {
-        onConflict: 'base_dt,news_id'
-      });
+  console.log(`💾 최종 ${finalTop4.length}개의 데이터를 mart_home에 배치 적재합니다.`);
+  
+  // 🚀 [성능 최적화 3] 개별 루프 upsert를 단일 네트워크 요청(Bulk Upsert)으로 통합 리팩토링
+  const upsertData = finalTop4.map(item => ({
+    news_id: item.news_id,
+    rank_score: item.rank_score,
+    base_dt: todayStr,
+    daily_brief: "" 
+  }));
+
+  const { error: insertError } = await supabase
+    .from('mart_home')
+    .upsert(upsertData, {
+      onConflict: 'base_dt,news_id'
+    });
       
-    if (insertError) {
-      console.error("적재 에러:", insertError);
-    }
+  if (insertError) {
+    console.error("적재 에러:", insertError);
   }
 
   console.log("🏁 [작업 완료] 모든 파이프라인이 성공적으로 끝났습니다.");
