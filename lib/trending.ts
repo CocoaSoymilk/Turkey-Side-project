@@ -1,29 +1,76 @@
+
 import type { NewsItem } from "./types";
 
 const STOPWORDS = new Set<string>([
-  "있다", "없다", "그리고", "그러나", "하지만", "이번", "오늘", "관련", "대한", "에서",
-  "으로", "에서의", "이라고", "위해", "대해", "지난", "지난주", "이날", "최근", "통해",
-  "따라", "동안", "이상", "이하", "기준", "전망", "예상", "강조", "발표", "밝혔다",
-  "말했다", "전했다", "있는", "없는", "많은", "큰", "등", "및", "또", "위한", "것으로",
-  "것이다", "했다", "됐다", "된다", "한다", "하는", "했던", "됐던", "이후", "시장",
-  "경제", "증시", "뉴스", "기자", "코스피", "코스닥", "주식", "투자", "금리", "환율",
+  "그리고",
+  "그러나",
+  "이번",
+  "오늘",
+  "최근",
+  "관련",
+  "통해",
+  "위해",
+  "대한",
+  "대해",
+  "에서",
+  "으로",
+  "으로서",
+  "라고",
+  "한다",
+  "했다",
+  "있는",
+  "없는",
+  "기자",
+  "뉴스",
+  "경제",
+  "증시",
+  "시장",
+  "주식",
+  "투자",
+  "금리",
+  "환율",
+  "코스피",
+  "코스닥",
 ]);
 
-const TOKEN_RE = /[가-힣A-Za-z0-9]{2,}/g;
+const LOW_INFO_TERMS = new Set<string>([
+  "상승",
+  "하락",
+  "급등",
+  "급락",
+  "반등",
+  "강세",
+  "약세",
+  "마감",
+  "출발",
+  "보합",
+  "전망",
+  "추가",
+  "영향",
+  "우려",
+  "완화",
+  "확산",
+  "개선",
+  "악화",
+  "진입",
+  "거래",
+  "변동성",
+  "매수",
+  "매도",
+]);
+
+const TOKEN_RE = /[가-힣A-Za-z0-9][가-힣A-Za-z0-9&.+-]{1,}/g;
 const TITLE_WEIGHT = 2.7;
 const BODY_WEIGHT = 1;
 const RECENT_WINDOW_HOURS = 3;
 
-const LOW_INFO_TERMS = new Set<string>([
-  "상승", "하락", "급등", "급락", "반등", "약세", "강세", "마감", "출발", "혼조", "보합",
-  "확대", "축소", "추가", "영향", "우려", "완화", "확산", "진정", "개선", "악화", "돌파",
-  "회복", "유지", "진입", "회피", "매수", "매도", "거래", "수급", "변동성", "급변",
-]);
-
+const PARTICLE_RE =
+  /(으로서|으로써|에게서|께서는|에서는|부터는|까지는|보다도|이라며|라고|으로|에서|에게|부터|까지|보다|처럼|만큼|조차|마저|이라|라고|은|는|이|가|을|를|의|에|와|과|도|만|로|와|과)$/;
+const VERB_ENDING_RE =
+  /(했다|한다|됐다|된다|하는|하며|하고|했다는|한다는|됐다며|되면서|하면서|한다며|했다고|된다고|했다고)$/;
 const ORG_HINT_RE =
-  /(은행|증권|전자|화학|그룹|금융|생명|보험|카드|정부|연준|한은|위원회|부처|공사|공단)$/;
-const LOC_HINT_RE =
-  /^(한국|미국|중국|일본|유럽|중동|서울|부산|러시아|우크라이나|대만|홍콩)$/;
+  /(증권|전자|화학|그룹|금융|생명|보험|카드|은행|공사|공단|산업|홀딩스|테크|바이오)$/;
+const THEME_HINT_RE = /(반도체|배터리|자동차|조선|방산|원전|AI|HBM|로봇)$/i;
 
 export type TrendingKeyword = {
   keyword: string;
@@ -44,27 +91,41 @@ type Agg = {
   entityBoost: number;
 };
 
+function stripKoreanSuffixes(value: string): string {
+  let token = value;
+  for (let i = 0; i < 2; i += 1) {
+    const next = token.replace(VERB_ENDING_RE, "").replace(PARTICLE_RE, "");
+    if (next === token) break;
+    token = next;
+  }
+  return token;
+}
+
 function normalizeToken(raw: string): string {
-  return raw.trim().replace(/[^\p{L}\p{N}]+/gu, "");
+  const token = raw.normalize("NFKC").trim().replace(/[^\p{L}\p{N}&.+-]+/gu, "");
+  if (/^[가-힣]+$/.test(token)) return stripKoreanSuffixes(token);
+  return token;
+}
+
+function isUsefulToken(token: string): boolean {
+  if (token.length < 2) return false;
+  if (/^\d+$/.test(token)) return false;
+  if (/^[+-]?\d+(\.\d+)?%?$/.test(token)) return false;
+  if (STOPWORDS.has(token)) return false;
+  if (LOW_INFO_TERMS.has(token)) return false;
+  return true;
 }
 
 function tokenize(text: string): string[] {
   const matches = text.match(TOKEN_RE) || [];
-  return matches
-    .map(normalizeToken)
-    .filter((w) => w.length >= 2)
-    .filter((w) => !/^\d+$/.test(w))
-    .filter((w) => !STOPWORDS.has(w))
-    .filter((w) => !LOW_INFO_TERMS.has(w));
+  return matches.map(normalizeToken).filter(isUsefulToken);
 }
 
 function inferEntityBoost(token: string): number {
-  // 1. 영어 대문자로 된 종목/코드 (예: AAPL, HBM) -> 아주 높음
-  if (/^[A-Z0-9]{2,8}$/.test(token)) return 1.5; 
-  // 2. 주요 경제 주체 (금융, 증권 등) -> 높음
-  if (ORG_HINT_RE.test(token)) return 1.3;
-  // 3. '...주' (테마주, 관련주) -> 중간
-  if (token.endsWith("주") && token.length > 2) return 1.1; 
+  if (/^[A-Z0-9]{2,8}$/.test(token)) return 1.5;
+  if (ORG_HINT_RE.test(token)) return 1.35;
+  if (THEME_HINT_RE.test(token)) return 1.25;
+  if (token.endsWith("주") && token.length > 2) return 1.15;
   return 1;
 }
 
@@ -93,7 +154,9 @@ export function selectTrendingKeywords(
     const articleTokenSet = new Set<string>();
     const recencyWeight = getRecencyWeight(item.pubDate);
     const pubTs = Date.parse(item.pubDate);
-    const hours = Number.isFinite(pubTs) ? Math.max(0, (Date.now() - pubTs) / 3_600_000) : 999;
+    const hours = Number.isFinite(pubTs)
+      ? Math.max(0, (Date.now() - pubTs) / 3_600_000)
+      : 999;
     const isRecent = hours <= RECENT_WINDOW_HOURS;
     const titleCount = new Map<string, number>();
     const descCount = new Map<string, number>();
@@ -122,9 +185,8 @@ export function selectTrendingKeywords(
       const titleTokenCount = titleCount.get(token) ?? 0;
       const descTokenCount = descCount.get(token) ?? 0;
       cur.totalCount += titleTokenCount + descTokenCount;
-      const tf =
-        titleTokenCount * TITLE_WEIGHT +
-        descTokenCount * BODY_WEIGHT;
+
+      const tf = titleTokenCount * TITLE_WEIGHT + descTokenCount * BODY_WEIGHT;
       if (tf > 0) {
         cur.weightedTf += tf;
         cur.titleTf += titleTokenCount * TITLE_WEIGHT;
@@ -150,18 +212,19 @@ export function selectTrendingKeywords(
       const articleCount = v.articleIds.size;
       const idf = Math.log((totalDocs + 1) / (v.docFreq + 1)) + 1;
       const tfidf = v.weightedTf * idf;
-      const expectedRecent = v.baselineMentions / Math.max(1, totalDocs - articleCount);
-      const velocityRaw = (v.recentMentions - expectedRecent) / Math.sqrt(expectedRecent + 1);
+      const expectedRecent =
+        v.baselineMentions / Math.max(1, totalDocs - articleCount);
+      const velocityRaw =
+        (v.recentMentions - expectedRecent) / Math.sqrt(expectedRecent + 1);
       const velocity = Math.max(0, velocityRaw);
       const score =
-        (articleCount * 2.5) +      // 확산도 (여러 매체에서 다룸)
-        (tfidf * 2.0) +             // 정보 가치 (흔하지 않은 단어)
-        (v.titleTf * 1.5) +         // 주목도 (제목에 언급됨)
-        (velocity * 3.0) +          // 시의성 (지금 막 쏟아짐) -> 이 값을 키우면 트렌드 반영이 빠릅니다.
-        (v.entityBoost * 1.2);      // 고유 명사 여부
-      if (articleCount < 2 && v.weightedTf < 4) {
-        return null;
-      }
+        articleCount * 2.5 +
+        tfidf * 2.0 +
+        v.titleTf * 1.5 +
+        velocity * 3.0 +
+        v.entityBoost * 1.2;
+
+      if (articleCount < 2 && v.weightedTf < 4) return null;
       return {
         keyword,
         score: Number(score.toFixed(2)),
@@ -185,11 +248,15 @@ export function extractTrendingKeywordNames(
   return selectTrendingKeywords(items, topN).map((k) => k.keyword);
 }
 
-export function filterNewsByKeyword(items: NewsItem[], keyword: string): NewsItem[] {
+export function filterNewsByKeyword(
+  items: NewsItem[],
+  keyword: string
+): NewsItem[] {
   if (!keyword.trim()) return items;
-  const needle = keyword.toLowerCase();
+  const needle = normalizeToken(keyword).toLowerCase();
   return items.filter((item) => {
-    const haystack = `${item.cleanTitle} ${item.cleanDescription}`.toLowerCase();
+    const haystack =
+      `${item.cleanTitle} ${item.cleanDescription}`.toLowerCase();
     return haystack.includes(needle);
   });
 }

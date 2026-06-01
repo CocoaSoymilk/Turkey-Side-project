@@ -142,26 +142,31 @@ ${snippets}`,
   });
 
   const raw = res.choices[0]?.message?.content ?? "{}";
-  const parsed = JSON.parse(raw) as {
-    keywords?: Array<{
-      keyword?: unknown;
-      query?: unknown;
-      summary?: unknown;
-      evidence_titles?: unknown;
-      evidenceTitles?: unknown;
-    }>;
-  };
+  try {
+    const parsed = JSON.parse(raw) as {
+      keywords?: Array<{
+        keyword?: unknown;
+        query?: unknown;
+        summary?: unknown;
+        evidence_titles?: unknown;
+        evidenceTitles?: unknown;
+      }>;
+    };
 
-  return Array.isArray(parsed.keywords)
-    ? parsed.keywords.slice(0, topN).map((item) => ({
-        keyword: String(item.keyword ?? ""),
-        query: String(item.query ?? item.keyword ?? ""),
-        summary: String(item.summary ?? ""),
-        evidenceTitles: Array.isArray(item.evidence_titles)
-          ? item.evidence_titles.map(String)
-          : Array.isArray(item.evidenceTitles)
-            ? item.evidenceTitles.map(String)
-            : [],
-      }))
-    : [];
+    return Array.isArray(parsed.keywords)
+      ? parsed.keywords.slice(0, topN).map((item) => ({
+          keyword: String(item.keyword ?? ""),
+          query: String(item.query ?? item.keyword ?? ""),
+          summary: String(item.summary ?? ""),
+          evidenceTitles: Array.isArray(item.evidence_titles)
+            ? item.evidence_titles.map(String)
+            : Array.isArray(item.evidenceTitles)
+              ? item.evidenceTitles.map(String)
+              : [],
+        }))
+      : [];
+  } catch (error) {
+    console.error("[openai:trend-keywords:parse]", error, raw.slice(0, 500));
+    return [];
+  }
 }
