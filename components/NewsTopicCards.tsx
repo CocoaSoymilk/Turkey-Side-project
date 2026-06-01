@@ -4,7 +4,7 @@ import { useState } from "react";
 import { NewsCard } from "@/components/NewsCard";
 import type { NewsItem } from "@/lib/types";
 
-const INITIAL_VISIBLE_ITEMS = 3;
+const INITIAL_VISIBLE_ITEMS = 4;
 
 export function NewsTopicCards({ items }: { items: NewsItem[] }) {
   const [showAll, setShowAll] = useState(false);
@@ -36,7 +36,7 @@ export function NewsTopicCards({ items }: { items: NewsItem[] }) {
 function EmptyCards() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {[0, 1, 2].map((i) => (
+      {[0, 1, 2, 3].map((i) => (
         <div
           key={i}
           className="rounded-xl border border-dashed border-slate-200 h-32 flex items-center justify-center text-xs text-slate-400"
