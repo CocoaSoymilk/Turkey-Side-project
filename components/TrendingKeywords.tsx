@@ -10,35 +10,30 @@ const MAX_ARTICLES_PER_TREND = 8;
 
 export function TrendingKeywords({
   trends,
-  items,
+  items: _items,
 }: {
   trends: TrendKeyword[];
   items: NewsItem[];
 }) {
   const [selected, setSelected] = useState<string>(trends[0]?.id ?? "");
-  const [showAll, setShowAll] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_ARTICLES);
 
   useEffect(() => {
     if (!trends.some((trend) => trend.id === selected)) {
       setSelected(trends[0]?.id ?? "");
-      setShowAll(false);
+      setVisibleCount(INITIAL_VISIBLE_ARTICLES);
     }
   }, [selected, trends]);
 
   const selectedTrend = trends.find((item) => item.id === selected);
 
-  const filtered = useMemo(() => {
-    const trend = trends.find((item) => item.id === selected);
-    return (trend?.articles.length ? trend.articles : items).slice(
-      0,
-      MAX_ARTICLES_PER_TREND
-    );
-  }, [items, selected, trends]);
+  const articles = useMemo(() => {
+    return (selectedTrend?.articles ?? []).slice(0, MAX_ARTICLES_PER_TREND);
+  }, [selectedTrend]);
 
-  const visibleArticles = showAll
-    ? filtered
-    : filtered.slice(0, INITIAL_VISIBLE_ARTICLES);
-  const hasMore = filtered.length > INITIAL_VISIBLE_ARTICLES;
+  const visibleArticles = articles.slice(0, visibleCount);
+  const hasMore = articles.length > INITIAL_VISIBLE_ARTICLES;
+  const isExpanded = visibleCount > INITIAL_VISIBLE_ARTICLES;
 
   return (
     <section className="card-dark p-5 md:p-6">
@@ -63,7 +58,7 @@ export function TrendingKeywords({
               type="button"
               onClick={() => {
                 setSelected(trend.id);
-                setShowAll(false);
+                setVisibleCount(INITIAL_VISIBLE_ARTICLES);
               }}
               className={
                 active
@@ -84,7 +79,7 @@ export function TrendingKeywords({
       <div className="mt-5 rounded-3xl bg-white/90 p-4 min-h-[220px]">
         {visibleArticles.length > 0 ? (
           <>
-            <ul className="space-y-2">
+            <ul key={selected} className="space-y-2">
               {visibleArticles.map((item) => (
                 <li key={item.id}>
                   <Link
@@ -104,10 +99,16 @@ export function TrendingKeywords({
             {hasMore && (
               <button
                 type="button"
-                onClick={() => setShowAll((value) => !value)}
+                onClick={() =>
+                  setVisibleCount((count) =>
+                    count > INITIAL_VISIBLE_ARTICLES
+                      ? INITIAL_VISIBLE_ARTICLES
+                      : MAX_ARTICLES_PER_TREND
+                  )
+                }
                 className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-navy hover:border-slate-300 hover:bg-slate-50 transition-colors duration-200"
               >
-                {showAll ? "접기" : "더보기"}
+                {isExpanded ? "접기" : "더보기"}
               </button>
             )}
           </>
