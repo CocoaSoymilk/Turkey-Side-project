@@ -8,6 +8,7 @@ export type NaverNewsItem = {
 
 export type NewsItem = NaverNewsItem & {
   id: string;
+  dbId?: number;
   cleanTitle: string;
   cleanDescription: string;
   source: string;
