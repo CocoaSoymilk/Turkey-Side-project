@@ -289,7 +289,6 @@ export async function fetchTrendKeywordsFromDb(
     return rows
       .map((row, index) => rowToTrendKeyword(row, index, items))
       .filter((trend): trend is TrendKeyword => trend !== null)
-      .filter((trend) => trend.articles.length > 0)
       .slice(0, limit);
   } catch (error) {
     console.error("[db:trends:fetch]", error);
