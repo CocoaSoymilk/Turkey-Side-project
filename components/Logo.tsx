@@ -1,19 +1,19 @@
 import Link from "next/link";
 
 export function Logo({ variant = "dark" }: { variant?: "dark" | "light" }) {
-  const ant = variant === "dark" ? "text-white" : "text-navy";
   return (
     <Link href="/" className="flex items-center gap-2">
       <span
-        className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${
-          variant === "dark" ? "bg-white/10" : "bg-navy"
+        className={`inline-flex h-10 w-[132px] overflow-hidden rounded-lg md:h-14 md:w-[160px] ${
+          variant === "dark" ? "bg-white/10" : "bg-white"
         }`}
         aria-hidden
       >
-        <span className={variant === "dark" ? "text-accent-mint" : "text-white"}>🐜</span>
-      </span>
-      <span className={`font-bold tracking-tight ${ant}`}>
-        Pick<span className="text-point-blue">·</span>Ant
+        <img
+          src="/images/pickant.svg"
+          alt=""
+          className="block h-full w-full object-contain"
+        />
       </span>
     </Link>
   );

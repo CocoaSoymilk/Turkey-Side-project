@@ -197,7 +197,7 @@ export default async function Home() {
   return (
     <main className="min-h-screen bg-[#F8FAFC]">
       <header className="border-b border-slate-200/90 bg-white/95 backdrop-blur">
-        <div className="mx-auto px-6 py-6 flex items-center justify-between">
+        <div className="mx-auto pl-[57px] pr-8 py-4 flex items-center justify-between">
           <Logo variant="light" />
         </div>
       </header>

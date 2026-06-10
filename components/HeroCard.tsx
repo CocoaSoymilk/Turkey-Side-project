@@ -48,9 +48,6 @@ export function HeroCard({
         }}
       />
 
-      <div className="relative z-10 flex items-center justify-between">
-        <Logo variant="dark" />
-      </div>
 
       <div className="relative z-10 mt-6 flex flex-wrap items-center gap-2 text-xs text-white/70">
         <span className="chip-dark">AI 데일리 브리핑 · {date}</span>
